@@ -1,0 +1,70 @@
+# ==============================================================================
+# Git Ignore - Pocket Option Market Data Harvester
+# ==============================================================================
+
+# Environment & Sensitive Credentials
+.env
+.env.*
+.env.local
+.env.production
+!.env.example
+*.pem
+*.key
+*.cert
+
+# Databases & Local Storage
+*.db
+*.sqlite
+*.sqlite3
+data/
+*.csv
+
+# Python Bytecode & Cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environments
+venv/
+.venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Logs & Diagnostics
+*.log
+logs/
+
+# IDE, Editor & OS Metadata
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Reverse-Engineering Research & Workspace Scratch
+test_poc_*.py
+reference_repos/
+.user_uploaded/
+scratch/
+.gemini/

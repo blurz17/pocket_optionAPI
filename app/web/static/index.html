@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pocket Option Harvester | Control Plane</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#eef2ff',
+              500: '#6366f1',
+              600: '#4f46e5',
+              700: '#4338ca',
+            },
+            dark: {
+              900: '#0b0f19',
+              800: '#111827',
+              700: '#1f2937',
+              600: '#374151',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Custom scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #111827; }
+    ::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #4b5563; }
+    .terminal-font { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+  </style>
+</head>
+<body class="bg-dark-900 text-gray-100 min-h-screen flex flex-col antialiased">
+
+  <!-- Top Navigation Header -->
+  <header class="border-b border-gray-800 bg-dark-800/80 backdrop-blur sticky top-0 z-50 px-6 py-3.5 flex items-center justify-between">
+    <div class="flex items-center space-x-4">
+      <div class="flex items-center space-x-2">
+        <div class="w-3.5 h-3.5 rounded-full bg-indigo-500 animate-pulse"></div>
+        <span class="font-bold text-lg tracking-wide bg-gradient-to-r from-indigo-400 to-cyan-400 bg-clip-text text-transparent">
+          POCKET OPTION HARVESTER
+        </span>
+      </div>
+      <span id="badge-status" class="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-gray-800 text-gray-400 border border-gray-700">
+        CHECKING...
+      </span>
+      <span class="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-cyan-950/60 text-cyan-300 border border-cyan-800 flex items-center gap-1.5">
+        <span class="w-1.5 h-1.5 rounded-full bg-cyan-400"></span> Neon PostgreSQL
+      </span>
+    </div>
+
+    <!-- Master Controls -->
+    <div class="flex items-center space-x-3">
+      <button id="btn-start" onclick="startCollector()" class="px-4 py-1.5 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white transition flex items-center gap-1.5 shadow-lg shadow-emerald-900/30">
+        <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path d="M4.5 3.5a1 1 0 011.5-.866l10 5.5a1 1 0 010 1.732l-10 5.5A1 1 0 014.5 14.5v-11z"/></svg>
+        START
+      </button>
+      <button id="btn-pause" onclick="pauseCollector()" class="px-4 py-1.5 text-xs font-semibold rounded-lg bg-amber-600 hover:bg-amber-500 text-white transition flex items-center gap-1.5 shadow-lg shadow-amber-900/30">
+        <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path d="M5.75 3a.75.75 0 00-.75.75v12.5c0 .414.336.75.75.75h1.5a.75.75 0 00.75-.75V3.75A.75.75 0 007.25 3h-1.5zM12.75 3a.75.75 0 00-.75.75v12.5c0 .414.336.75.75.75h1.5a.75.75 0 00.75-.75V3.75a.75.75 0 00-.75-.75h-1.5z"/></svg>
+        PAUSE
+      </button>
+      <button id="btn-stop" onclick="stopCollector()" class="px-4 py-1.5 text-xs font-semibold rounded-lg bg-rose-600 hover:bg-rose-500 text-white transition flex items-center gap-1.5 shadow-lg shadow-rose-900/30">
+        <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path d="M4 4h12v12H4z"/></svg>
+        STOP
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="flex-1 p-6 max-w-7xl w-full mx-auto space-y-6">
+
+    <!-- KPI Metric Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div class="bg-dark-800 border border-gray-800 rounded-xl p-4 flex flex-col justify-between">
+        <span class="text-xs text-gray-400 font-medium">TOTAL CANDLES (NEON DB)</span>
+        <div class="mt-2 flex items-baseline justify-between">
+          <span id="metric-total-db" class="text-2xl font-black text-white">0</span>
+          <span class="text-xs text-emerald-400 font-semibold">Persisted</span>
+        </div>
+      </div>
+
+      <div class="bg-dark-800 border border-gray-800 rounded-xl p-4 flex flex-col justify-between">
+        <span class="text-xs text-gray-400 font-medium">HARVEST RATE</span>
+        <div class="mt-2 flex items-baseline justify-between">
+          <span id="metric-rate" class="text-2xl font-black text-cyan-400">0</span>
+          <span class="text-xs text-gray-500 font-medium">candles / min</span>
+        </div>
+      </div>
+
+      <div class="bg-dark-800 border border-gray-800 rounded-xl p-4 flex flex-col justify-between">
+        <span class="text-xs text-gray-400 font-medium">ACTIVE INSTRUMENTS</span>
+        <div class="mt-2 flex items-baseline justify-between">
+          <span id="metric-symbols" class="text-2xl font-black text-indigo-400">0</span>
+          <span class="text-xs text-gray-500 font-medium">timeframe: <span id="metric-tf">60</span>s</span>
+        </div>
+      </div>
+
+      <div class="bg-dark-800 border border-gray-800 rounded-xl p-4 flex flex-col justify-between">
+        <span class="text-xs text-gray-400 font-medium">ENGINE UPTIME & LATENCY</span>
+        <div class="mt-2 flex items-baseline justify-between">
+          <span id="metric-uptime" class="text-2xl font-black text-gray-300">00:00:00</span>
+          <span id="metric-latency" class="text-xs text-emerald-400 font-medium">-- ms</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab Navigation -->
+    <div class="border-b border-gray-800 flex space-x-8 text-sm font-semibold">
+      <button onclick="switchTab('monitor')" id="tab-btn-monitor" class="pb-3 text-indigo-400 border-b-2 border-indigo-500 transition">
+        Live Telemetry & Logs
+      </button>
+      <button onclick="switchTab('config')" id="tab-btn-config" class="pb-3 text-gray-400 hover:text-gray-200 transition">
+        Instruments & Timeframes
+      </button>
+      <button onclick="switchTab('session')" id="tab-btn-session" class="pb-3 text-gray-400 hover:text-gray-200 transition">
+        Session Assistant (1-Click Sync)
+      </button>
+      <button onclick="switchTab('alerts')" id="tab-btn-alerts" class="pb-3 text-gray-400 hover:text-gray-200 transition">
+        Telegram Alerts
+      </button>
+    </div>
+
+    <!-- TAB 1: Live Monitor & Logs -->
+    <div id="tab-monitor" class="space-y-6">
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        
+        <!-- Live Terminal Streamer -->
+        <div class="bg-dark-800 border border-gray-800 rounded-xl overflow-hidden flex flex-col h-[460px]">
+          <div class="bg-dark-900/60 px-4 py-2.5 border-b border-gray-800 flex items-center justify-between">
+            <span class="text-xs font-semibold text-gray-300 flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full bg-emerald-500"></span> Live Event Terminal
+            </span>
+            <div class="flex items-center space-x-2">
+              <button onclick="clearLogs()" class="px-2 py-1 text-[11px] bg-gray-800 hover:bg-gray-700 text-gray-300 rounded transition">
+                Clear
+              </button>
+            </div>
+          </div>
+          <div id="log-terminal" class="terminal-font flex-1 p-3.5 text-xs overflow-y-auto space-y-1.5 bg-[#080c14] text-gray-300">
+            <div class="text-gray-500">[System] Connected to Harvester Control Plane.</div>
+          </div>
+        </div>
+
+        <!-- Real-Time Candles Ingested Table -->
+        <div class="bg-dark-800 border border-gray-800 rounded-xl overflow-hidden flex flex-col h-[460px]">
+          <div class="bg-dark-900/60 px-4 py-2.5 border-b border-gray-800 flex items-center justify-between">
+            <span class="text-xs font-semibold text-gray-300">Recent Candles Ingested to Neon DB</span>
+            <div class="flex items-center space-x-2">
+              <button onclick="fetchRecentCandles()" class="px-2 py-1 text-[11px] bg-gray-800 hover:bg-gray-700 text-gray-300 rounded transition">
+                Refresh
+              </button>
+              <a href="/api/export" download class="px-2.5 py-1 text-[11px] bg-indigo-600 hover:bg-indigo-500 text-white rounded font-medium transition flex items-center gap-1">
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                Export CSV (ML)
+              </a>
+            </div>
+          </div>
+          <div class="flex-1 overflow-auto">
+            <table class="w-full text-left text-xs">
+              <thead class="bg-dark-900/50 text-gray-400 sticky top-0 border-b border-gray-800">
+                <tr>
+                  <th class="py-2 px-3">Symbol</th>
+                  <th class="py-2 px-3">Time</th>
+                  <th class="py-2 px-3">Open</th>
+                  <th class="py-2 px-3">High</th>
+                  <th class="py-2 px-3">Low</th>
+                  <th class="py-2 px-3">Close</th>
+                  <th class="py-2 px-3">Vol</th>
+                </tr>
+              </thead>
+              <tbody id="candle-table-body" class="divide-y divide-gray-800 font-mono text-gray-300">
+                <tr><td colspan="7" class="text-center py-8 text-gray-500">Waiting for candles...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- TAB 2: Config & Symbols -->
+    <div id="tab-config" class="hidden space-y-6">
+      <div class="bg-dark-800 border border-gray-800 rounded-xl p-6 space-y-6 max-w-3xl">
+        <h3 class="font-bold text-base text-white">Harvest Configuration</h3>
+        
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 mb-2">Candle Period / Timeframe</label>
+          <div class="grid grid-cols-4 sm:grid-cols-8 gap-2">
+            <button type="button" onclick="setTimeframe(1)" class="tf-btn py-2 text-xs font-bold rounded-lg border border-gray-700 hover:border-indigo-500 transition">1s</button>
+            <button type="button" onclick="setTimeframe(5)" class="tf-btn py-2 text-xs font-bold rounded-lg border border-gray-700 hover:border-indigo-500 transition">5s</button>
+            <button type="button" onclick="setTimeframe(15)" class="tf-btn py-2 text-xs font-bold rounded-lg border border-gray-700 hover:border-indigo-500 transition">15s</button>
+            <button type="button" onclick="setTimeframe(30)" class="tf-btn py-2 text-xs font-bold rounded-lg border border-gray-700 hover:border-indigo-500 transition">30s</button>
+            <button type="button" onclick="setTimeframe(60)" class="tf-btn py-2 text-xs font-bold rounded-lg border border-indigo-500 bg-indigo-950/40 text-indigo-300 transition">60s</button>
+            <button type="button" onclick="setTimeframe(300)" class="tf-btn py-2 text-xs font-bold rounded-lg border border-gray-700 hover:border-indigo-500 transition">5m</button>
+            <button type="button" onclick="setTimeframe(900)" class="tf-btn py-2 text-xs font-bold rounded-lg border border-gray-700 hover:border-indigo-500 transition">15m</button>
+            <button type="button" onclick="setTimeframe(3600)" class="tf-btn py-2 text-xs font-bold rounded-lg border border-gray-700 hover:border-indigo-500 transition">1h</button>
+          </div>
+        </div>
+
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <label class="text-xs font-semibold text-gray-400">Target Instruments (Comma Separated)</label>
+            <div class="space-x-2">
+              <button onclick="applyPreset('otc_majors')" class="text-[11px] text-indigo-400 hover:underline">Top 8 OTC</button>
+              <button onclick="applyPreset('all_otc')" class="text-[11px] text-cyan-400 hover:underline">All 114 OTC</button>
+              <button onclick="applyPreset('regular')" class="text-[11px] text-gray-400 hover:underline">Major Forex</button>
+            </div>
+          </div>
+          <textarea id="input-symbols" rows="5" class="w-full bg-dark-900 border border-gray-700 rounded-lg p-3 text-xs font-mono text-gray-200 focus:border-indigo-500 focus:outline-none"></textarea>
+        </div>
+
+        <button onclick="saveConfig()" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold transition">
+          Apply Configuration
+        </button>
+      </div>
+    </div>
+
+    <!-- TAB 3: Session Assistant -->
+    <div id="tab-session" class="hidden space-y-6">
+      <div class="bg-dark-800 border border-gray-800 rounded-xl p-6 space-y-6 max-w-3xl">
+        <div>
+          <h3 class="font-bold text-base text-white">Client Session Assistant</h3>
+          <p class="text-xs text-gray-400 mt-1">
+            Because Pocket Option binds sessions to your machine's IP, use this 1-Click Sync button from your browser while on Pocket Option.
+          </p>
+        </div>
+
+        <!-- 1-Click Bookmarklet Tool -->
+        <div class="bg-dark-900 border border-indigo-900/50 rounded-xl p-5 space-y-3">
+          <span class="text-xs font-bold text-indigo-400 uppercase tracking-wider">Method 1: Zero-DevTools 1-Click Bookmarklet</span>
+          <p class="text-xs text-gray-300">
+            Drag the button below to your Chrome/Edge **Bookmarks Bar**. When logged into Pocket Option, click it once. It extracts the session and syncs it with this dashboard automatically:
+          </p>
+          <div class="pt-2">
+            <a id="bookmarklet-link" href="javascript:(function(){const c=document.cookie.split('; ').find(r=>r.startsWith('session='));if(!c){alert('Session cookie not found! Make sure you are logged into pocketoption.com');return;}const s=c.split('=')[1];fetch(window.location.origin+'/api/session',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({session:s})}).then(r=>r.json()).then(d=>{alert('✅ Synced with Pocket Option Harvester!');}).catch(e=>{alert('Error connecting to Harvester: '+e);});})();" 
+               class="inline-block px-4 py-2 bg-gradient-to-r from-indigo-600 to-cyan-600 text-white font-bold text-xs rounded-lg shadow-lg cursor-grab hover:opacity-90">
+              📌 Drag to Bookmarks: [Sync Harvester]
+            </a>
+          </div>
+        </div>
+
+        <!-- Manual Paste Fallback -->
+        <div class="space-y-3">
+          <span class="text-xs font-bold text-gray-400 uppercase tracking-wider">Method 2: Manual Session Paste</span>
+          <textarea id="input-session-raw" rows="3" placeholder='Paste session string or 42["auth", {...}] frame here...' class="w-full bg-dark-900 border border-gray-700 rounded-lg p-3 text-xs font-mono text-gray-200 focus:border-indigo-500 focus:outline-none"></textarea>
+          <button onclick="submitManualSession()" class="px-5 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-xs font-semibold transition">
+            Save Session String
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 4: Telegram Alerts -->
+    <div id="tab-alerts" class="hidden space-y-6">
+      <div class="bg-dark-800 border border-gray-800 rounded-xl p-6 space-y-6 max-w-2xl">
+        <h3 class="font-bold text-base text-white">Telegram Notification Settings</h3>
+        <p class="text-xs text-gray-400">
+          The harvester automatically alerts your Telegram bot on disconnections, reconnection recoveries, session expirations, and daily collection totals.
+        </p>
+
+        <div class="space-y-4">
+          <div>
+            <label class="block text-xs font-medium text-gray-400 mb-1">Bot Token</label>
+            <input type="text" id="tg-token" value="••••••••••••••••••••••••••••••••••••••••" placeholder="Configured via TELEGRAM_BOT_TOKEN environment variable" class="w-full bg-dark-900 border border-gray-700 rounded-lg p-2.5 text-xs text-gray-200" disabled>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-400 mb-1">Chat ID</label>
+            <input type="text" id="tg-chat-id" value="Configured via TELEGRAM_CHAT_ID" class="w-full bg-dark-900 border border-gray-700 rounded-lg p-2.5 text-xs text-gray-200" disabled>
+          </div>
+        </div>
+
+        <button onclick="testTelegramAlert()" class="px-5 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-semibold transition flex items-center gap-2">
+          <span>Send Test Alert</span>
+        </button>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Script logic -->
+  <script>
+    let activeTimeframe = 60;
+    let ws = null;
+
+    const OTC_PRESETS = {
+      otc_majors: "EURUSD_otc,GBPUSD_otc,USDJPY_otc,AUDUSD_otc,USDCAD_otc,USDCHF_otc,NZDUSD_otc,XAUUSD_otc",
+      all_otc: "EURUSD_otc,GBPUSD_otc,USDJPY_otc,AUDUSD_otc,USDCAD_otc,USDCHF_otc,NZDUSD_otc,XAUUSD_otc,AUDCAD_otc,AUDCHF_otc,AUDJPY_otc,AUDNZD_otc,CADCHF_otc,CADJPY_otc,CHFJPY_otc,EURAUD_otc,EURCAD_otc,EURCHF_otc,EURGBP_otc,EURJPY_otc,EURNZD_otc,GBPAUD_otc,GBPCAD_otc,GBPCHF_otc,GBPJPY_otc,GBPNZD_otc,NZDCAD_otc,NZDCHF_otc,NZDJPY_otc,USDINR_otc,USDRUB_otc,USDTRY_otc,#AAPL_otc,#MSFT_otc,#TSLA_otc,#AMZN_otc,#GOOG_otc,BTCUSD_otc,ETHUSD_otc",
+      regular: "EURUSD,GBPUSD,USDJPY,AUDUSD,USDCAD,USDCHF,XAUUSD"
+    };
+
+    function switchTab(tab) {
+      ['monitor', 'config', 'session', 'alerts'].forEach(t => {
+        document.getElementById(`tab-${t}`).classList.add('hidden');
+        document.getElementById(`tab-btn-${t}`).className = 'pb-3 text-gray-400 hover:text-gray-200 transition';
+      });
+      document.getElementById(`tab-${tab}`).classList.remove('hidden');
+      document.getElementById(`tab-btn-${tab}`).className = 'pb-3 text-indigo-400 border-b-2 border-indigo-500 transition font-bold';
+    }
+
+    function setTimeframe(tf) {
+      activeTimeframe = tf;
+      document.querySelectorAll('.tf-btn').forEach(btn => {
+        btn.className = 'tf-btn py-2 text-xs font-bold rounded-lg border border-gray-700 hover:border-indigo-500 transition text-gray-300';
+      });
+      event.target.className = 'tf-btn py-2 text-xs font-bold rounded-lg border border-indigo-500 bg-indigo-950/40 text-indigo-300 transition';
+      document.getElementById('metric-tf').innerText = tf;
+    }
+
+    function applyPreset(preset) {
+      document.getElementById('input-symbols').value = OTC_PRESETS[preset] || "";
+    }
+
+    async function startCollector() {
+      await fetch('/api/start', { method: 'POST' });
+    }
+
+    async function pauseCollector() {
+      await fetch('/api/pause', { method: 'POST' });
+    }
+
+    async function stopCollector() {
+      await fetch('/api/stop', { method: 'POST' });
+    }
+
+    async function saveConfig() {
+      const symStr = document.getElementById('input-symbols').value;
+      const symbols = symStr.split(',').map(s => s.trim()).filter(Boolean);
+      await fetch('/api/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ timeframe: activeTimeframe, symbols: symbols })
+      });
+      alert('Configuration updated successfully!');
+    }
+
+    async function submitManualSession() {
+      const raw = document.getElementById('input-session-raw').value.trim();
+      if (!raw) return;
+      let session = raw;
+      let uid = null;
+      let is_demo = 0;
+
+      // Check if wrapped in 42["auth", {...}]
+      if (raw.includes('"session"')) {
+        try {
+          const jsonPart = raw.substring(raw.indexOf('{'), raw.lastIndexOf('}') + 1);
+          const parsed = JSON.parse(jsonPart);
+          session = parsed.session || raw;
+          uid = parsed.uid;
+          is_demo = parsed.isDemo || 0;
+        } catch (e) {}
+      }
+
+      const res = await fetch('/api/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session, uid, is_demo })
+      });
+      if (res.ok) {
+        alert('Session updated successfully!');
+      } else {
+        alert('Failed to update session');
+      }
+    }
+
+    async function testTelegramAlert() {
+      const res = await fetch('/api/test-telegram', { method: 'POST' });
+      const data = await res.json();
+      if (data.ok) alert('Telegram alert delivered successfully!');
+      else alert('Failed to deliver Telegram alert.');
+    }
+
+    function appendLog(entry) {
+      const term = document.getElementById('log-terminal');
+      const div = document.createElement('div');
+      let color = 'text-gray-300';
+      if (entry.level === 'WARN') color = 'text-amber-400';
+      if (entry.level === 'ERROR') color = 'text-rose-400 font-bold';
+      div.className = `${color} leading-relaxed`;
+      div.innerHTML = `<span class="text-gray-500">[${entry.time}]</span> <span class="font-bold">[${entry.level}]</span> ${entry.message}`;
+      term.appendChild(div);
+      term.scrollTop = term.scrollHeight;
+    }
+
+    function clearLogs() {
+      document.getElementById('log-terminal').innerHTML = '';
+    }
+
+    async function fetchRecentCandles() {
+      const res = await fetch('/api/candles?limit=15');
+      const data = await res.json();
+      const body = document.getElementById('candle-table-body');
+      if (!data.candles || data.candles.length === 0) {
+        body.innerHTML = '<tr><td colspan="7" class="text-center py-6 text-gray-500">No candles recorded yet.</td></tr>';
+        return;
+      }
+      body.innerHTML = data.candles.map(c => `
+        <tr class="hover:bg-dark-900/40">
+          <td class="py-2 px-3 font-bold text-indigo-300">${c.symbol}</td>
+          <td class="py-2 px-3 text-gray-400">${new Date(c.timestamp * 1000).toLocaleTimeString()}</td>
+          <td class="py-2 px-3">${Number(c.open).toFixed(5)}</td>
+          <td class="py-2 px-3 text-emerald-400">${Number(c.high).toFixed(5)}</td>
+          <td class="py-2 px-3 text-rose-400">${Number(c.low).toFixed(5)}</td>
+          <td class="py-2 px-3 font-semibold">${Number(c.close).toFixed(5)}</td>
+          <td class="py-2 px-3 text-gray-400">${c.volume}</td>
+        </tr>
+      `).join('');
+    }
+
+    function updateStatusUI(data) {
+      const badge = document.getElementById('badge-status');
+      badge.innerText = data.status;
+      badge.className = 'px-2.5 py-0.5 text-xs font-semibold rounded-full border transition ';
+      if (data.status === 'RUNNING') badge.className += 'bg-emerald-950/60 text-emerald-300 border-emerald-800';
+      else if (data.status === 'PAUSED') badge.className += 'bg-amber-950/60 text-amber-300 border-amber-800';
+      else if (data.status === 'AUTH_ERROR') badge.className += 'bg-rose-950/60 text-rose-300 border-rose-800 animate-pulse';
+      else if (data.status === 'RECONNECTING') badge.className += 'bg-yellow-950/60 text-yellow-300 border-yellow-800';
+      else badge.className += 'bg-gray-800 text-gray-400 border-gray-700';
+
+      document.getElementById('metric-total-db').innerText = (data.candles_total_db || 0).toLocaleString();
+      document.getElementById('metric-rate').innerText = data.candles_per_min || 0;
+      document.getElementById('metric-symbols').innerText = data.active_symbols || 0;
+      document.getElementById('metric-latency').innerText = `${data.latency_ms || 0} ms`;
+
+      if (data.uptime_seconds) {
+        const h = String(Math.floor(data.uptime_seconds / 3600)).padStart(2, '0');
+        const m = String(Math.floor((data.uptime_seconds % 3600) / 60)).padStart(2, '0');
+        const s = String(data.uptime_seconds % 60).padStart(2, '0');
+        document.getElementById('metric-uptime').innerText = `${h}:${m}:${s}`;
+      }
+    }
+
+    function initWebSocket() {
+      const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      ws = new WebSocket(`${protocol}//${location.host}/ws/logs`);
+      ws.onmessage = (event) => {
+        const msg = JSON.parse(event.data);
+        if (msg.type === 'log') appendLog(msg.data);
+        if (msg.type === 'status') updateStatusUI(msg.data);
+      };
+      ws.onclose = () => {
+        setTimeout(initWebSocket, 2000);
+      };
+    }
+
+    // Init
+    window.onload = async () => {
+      document.getElementById('input-symbols').value = OTC_PRESETS.otc_majors;
+      initWebSocket();
+      fetchRecentCandles();
+      setInterval(fetchRecentCandles, 5000);
+      const res = await fetch('/api/status');
+      const data = await res.json();
+      updateStatusUI(data);
+    };
+  </script>
+</body>
+</html>
