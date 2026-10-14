@@ -24,8 +24,10 @@ class PostgresManager:
                 min_size=2,
                 max_size=10,
                 max_inactive_connection_lifetime=300.0,
-                command_timeout=60.0
+                command_timeout=60.0,
+                timeout=5.0,
             )
+
             await self._create_schema()
             logger.info("Neon PostgreSQL connected and schema verified.")
 

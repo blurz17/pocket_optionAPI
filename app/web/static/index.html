@@ -79,12 +79,13 @@
     <!-- KPI Metric Cards -->
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
       <div class="bg-dark-800 border border-gray-800 rounded-xl p-4 flex flex-col justify-between">
-        <span class="text-xs text-gray-400 font-medium">TOTAL CANDLES (NEON DB)</span>
+        <span id="label-total-db" class="text-xs text-gray-400 font-medium">TOTAL CANDLES (NEON DB)</span>
         <div class="mt-2 flex items-baseline justify-between">
           <span id="metric-total-db" class="text-2xl font-black text-white">0</span>
           <span class="text-xs text-emerald-400 font-semibold">Persisted</span>
         </div>
       </div>
+
 
       <div class="bg-dark-800 border border-gray-800 rounded-xl p-4 flex flex-col justify-between">
         <span class="text-xs text-gray-400 font-medium">HARVEST RATE</span>
@@ -424,7 +425,13 @@
       else if (data.status === 'RECONNECTING') badge.className += 'bg-yellow-950/60 text-yellow-300 border-yellow-800';
       else badge.className += 'bg-gray-800 text-gray-400 border-gray-700';
 
-      document.getElementById('metric-total-db').innerText = (data.candles_total_db || 0).toLocaleString();
+      if (data.candles_total_db !== undefined && data.candles_total_db !== null) {
+        document.getElementById('metric-total-db').innerText = Number(data.candles_total_db).toLocaleString();
+      }
+      if (data.db_type) {
+        const label = document.getElementById('label-total-db');
+        if (label) label.innerText = `TOTAL CANDLES (${data.db_type.toUpperCase()})`;
+      }
       document.getElementById('metric-rate').innerText = data.candles_per_min || 0;
       document.getElementById('metric-symbols').innerText = data.active_symbols || 0;
       document.getElementById('metric-latency').innerText = `${data.latency_ms || 0} ms`;
@@ -435,6 +442,7 @@
         const s = String(data.uptime_seconds % 60).padStart(2, '0');
         document.getElementById('metric-uptime').innerText = `${h}:${m}:${s}`;
       }
+
     }
 
     function initWebSocket() {

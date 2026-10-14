@@ -1,12 +1,18 @@
+"""
+Pocket Option Data Harvester — Launcher
+
+Usage:
+    python run_dashboard.py
+"""
 import os
-import uvicorn
 import logging
+import uvicorn
 from app.config import config
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    datefmt="%H:%M:%S"
+    datefmt="%H:%M:%S",
 )
 
 if __name__ == "__main__":
@@ -14,7 +20,11 @@ if __name__ == "__main__":
     host = os.environ.get("HOST", config.DASHBOARD_HOST)
 
     tg_status = "Configured" if config.TELEGRAM_BOT_TOKEN and config.TELEGRAM_CHAT_ID else "Disabled / Pending Config"
-    db_target = "PostgreSQL (Neon / Cloud)" if not config.USE_SQLITE_FALLBACK and config.DATABASE_URL else "Local SQLite Fallback"
+    db_target = (
+        "PostgreSQL (Neon / Cloud)"
+        if not config.USE_SQLITE_FALLBACK and config.DATABASE_URL
+        else "Local SQLite Fallback"
+    )
 
     print(rf"""
 ========================================================================
@@ -24,11 +34,14 @@ if __name__ == "__main__":
   • Database Target:    {db_target}
   • Telegram Alerts:    {tg_status}
 ========================================================================
-""")
+""", flush=True)
+
+    from app.main import app
     uvicorn.run(
-        "app.web.server:app",
+        app,
         host=host,
         port=port,
         reload=False,
-        log_level="info"
+        log_level="info",
     )
+
